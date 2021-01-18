@@ -102,8 +102,11 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
     let mut req = Vec::new();
     let uri = request.uri();
 
-    let authority = uri.authority().ok_or(Error::Url(UrlError::NoHostName))?.as_str();
-    let host = if let Some(idx) = authority.find('@') {
+    let authority =
+        uri.authority().ok_or(Error::Url(UrlError::NoHostName))?.as_str();
+    let host = if let Some(host_header) = request.headers().get("Host") {
+        host_header.to_str()?
+    } else if let Some(idx) = authority.find('@') {
         // handle possible name:password@
         authority.split_at(idx + 1).1
     } else {
@@ -130,6 +133,14 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
     .unwrap();
 
     for (k, v) in request.headers() {
+        let header_name = k.as_str();
+        if header_name.eq_ignore_ascii_case("connection") ||
+            header_name.eq_ignore_ascii_case("upgrade") ||
+            header_name.eq_ignore_ascii_case("host") ||
+            header_name.eq_ignore_ascii_case("sec-webSocket-version") ||
+            header_name.eq_ignore_ascii_case("sec-webSocket-key") {
+            continue;
+        }
         let mut k = k.as_str();
         if k == "sec-websocket-protocol" {
             k = "Sec-WebSocket-Protocol";
